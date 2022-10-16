@@ -1,0 +1,148 @@
+namespace: monk-consul
+
+consul-common:
+  metadata:
+    defines: metadata
+    name: Consul by HashiCorp
+    description: Consul is a service networking solution to automate network configurations, discover services, and enable secure connectivity across any cloud or runtime.
+    website: https://www.consul.io
+    publisher: monk.io
+    icon: logo.png
+  variables:
+    node1_host:
+      type: string
+      value: <- get-hostname("monk-consul/consul-node1", "consul") split(".dns.podman") join("")
+    node2_host:
+      type: string
+      value: <- get-hostname("monk-consul/consul-node2", "consul") split(".dns.podman") join("")
+    client_host:
+      type: string
+      value: <- get-hostname("monk-consul/consul-client", "client") split(".dns.podman") join("")
+    
+
+consul-node1:
+  defines: runnable
+  inherits: ./consul-common
+  variables:
+    node:
+      env: node
+      type: string
+      value: <- `${node1_host}`
+    node1:
+      env: node1
+      type: string
+      value: <- `${node1_host}`
+    node2:
+      env: node2
+      type: string
+      value: <- `${node2_host}`
+    test_monk:
+      env: TEST_MONK
+      type: string
+      value: <- exec("monk-consul/consul-node1", "consul", "h=$(hostname); ping -c 1 ${h} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():'")
+    test_ls:
+      env: TEST_MONK_ECHO
+      type: string
+      value: <- exec("monk-consul/consul-node1", "consul", "echo 'hello world'")
+  containers:
+    consul:
+      image: consul
+      ports:
+        - 0.0.0.0:8500:8500
+        - 0.0.0.0:8600:8600/tcp
+        - 0.0.0.0:8300:8300/tcp
+        - 0.0.0.0:8301:8301/tcp
+        - 0.0.0.0:8302:8302/tcp
+        - 0.0.0.0:8600:8600/udp
+        - 0.0.0.0:8301:8301/udp
+        - 0.0.0.0:8302:8302/udp
+      paths:
+        - <- `${moncc-volume-path}/consul-node1:/consul/data`
+      bash: /opt/init.sh
+      #bash: sleep 3600 #agent -server -bootstrap-expect 2 -retry-join ${node1} -retry-join ${node2}
+  files:
+    server-def:
+      container: consul
+      path: /opt/init.sh
+      mode: 755
+      contents: |
+        #!/bin/sh
+        
+        host=$(ping -c 1 ${node} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
+        consul agent -server -bootstrap-expect 2 -retry-join ${node2} -advertise ${host} -data-dir=/consul/data -ui -client 0.0.0.0
+
+  depends:
+    wait-for:
+      runnables:
+        - monk-consul/consul-node1
+consul-node2:
+  defines: runnable
+  inherits: ./consul-common
+  variables:
+    node:
+      env: node
+      type: string
+      value: <- `${node2_host}`
+    node1:
+      env: node1
+      type: string
+      value: <- `${node1_host}`
+    node2:
+      env: node2
+      type: string
+      value: <- `${node2_host}`
+  containers:
+    consul:
+      image: consul
+      ports:
+        - 0.0.0.0:8501:8500
+      paths:
+        - <- `${moncc-volume-path}/consul-node2:/consul/data`
+      bash: /opt/init.sh
+  depends:
+    wait-for:
+      runnables:
+        - monk-consul/consul-node1
+  files:
+    server-def:
+      container: consul
+      path: /opt/init.sh
+      mode: 755
+      contents: |
+        #!/bin/sh
+
+        host=$(ping -c 1 ${node} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
+        consul agent -server -bootstrap-expect 2 -retry-join ${node1} -advertise ${host} -data-dir=/consul/data -ui -client 0.0.0.0
+
+consul-client:
+  defines: runnable
+  inherits: ./consul-common
+  variables:
+    node:
+      env: node
+      type: string
+      value: <- `${client_host}`
+    node1:
+      env: node1
+      type: string
+      value: <- `${node1_host}`
+    node2:
+      env: node2
+      type: string
+      value: <- `${node2_host}`
+  containers:
+    client:
+      image: consul
+      paths:
+        - <- `${moncc-volume-path}/consul-client:/consul/data`
+      bash: /opt/init.sh
+  files:
+    server-def:
+      container: client
+      path: /opt/init.sh
+      mode: 755
+      contents: |
+        #!/bin/sh
+
+        host=$(ping -c 1 ${node} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
+        consul agent -retry-join ${node1} -retry-join ${node2} -data-dir=/consul/data  -advertise ${host}

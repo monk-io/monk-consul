@@ -1,0 +1,2 @@
+REPO consul
+LOAD consul.yml stack.yml
