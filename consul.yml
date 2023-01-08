@@ -8,21 +8,30 @@ consul-common:
     website: https://www.consul.io
     publisher: monk.io
     icon: logo.png
+  connections:
+    consul-node1:
+      runnable: monk-consul/consul-node1
+      service: consul-svc
+    consul-node2:
+      runnable: monk-consul/consul-node2
+      service: consul-svc
   variables:
     node1_host:
+      env: node1
       type: string
-      value: <- get-hostname("monk-consul/consul-node1", "consul") split(".dns.podman") join("")
+      value: <- connection-hostname("consul-node1") split(".dns.podman") join("")
     node2_host:
+      env: node2
       type: string
-      value: <- get-hostname("monk-consul/consul-node2", "consul") split(".dns.podman") join("")
+      value: <- connection-hostname("consul-node2") split(".dns.podman") join("")
     client_host:
       type: string
-      value: <- get-hostname("monk-consul/consul-client", "client") split(".dns.podman") join("")
+      value: <- connection-hostname("consul-client") split(".dns.podman") join("")
     
 
 consul-node1:
   defines: runnable
-  inherits: ./consul-common
+  inherits: monk-consul/consul-common
   variables:
     node:
       env: node
@@ -36,14 +45,6 @@ consul-node1:
       env: node2
       type: string
       value: <- `${node2_host}`
-    test_monk:
-      env: TEST_MONK
-      type: string
-      value: <- exec("monk-consul/consul-node1", "consul", "h=$(hostname); ping -c 1 ${h} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():'")
-    test_ls:
-      env: TEST_MONK_ECHO
-      type: string
-      value: <- exec("monk-consul/consul-node1", "consul", "echo 'hello world'")
   containers:
     consul:
       image: consul
@@ -59,7 +60,6 @@ consul-node1:
       paths:
         - <- `${moncc-volume-path}/consul-node1:/consul/data`
       bash: /opt/init.sh
-      #bash: sleep 3600 #agent -server -bootstrap-expect 2 -retry-join ${node1} -retry-join ${node2}
   files:
     server-def:
       container: consul
@@ -70,14 +70,15 @@ consul-node1:
         
         host=$(ping -c 1 ${node} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
         consul agent -server -bootstrap-expect 2 -retry-join ${node2} -advertise ${host} -data-dir=/consul/data -ui -client 0.0.0.0
-
-  depends:
-    wait-for:
-      runnables:
-        - monk-consul/consul-node1
+  services:
+    consul-svc:
+      container: consul
+      port: 8500
+      protocol: tcp
+      
 consul-node2:
   defines: runnable
-  inherits: ./consul-common
+  inherits: monk-consul/consul-common
   variables:
     node:
       env: node
@@ -113,10 +114,15 @@ consul-node2:
 
         host=$(ping -c 1 ${node} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
         consul agent -server -bootstrap-expect 2 -retry-join ${node1} -advertise ${host} -data-dir=/consul/data -ui -client 0.0.0.0
+  services:
+    consul-svc:
+      container: consul
+      port: 8500
+      protocol: tcp
 
 consul-client:
   defines: runnable
-  inherits: ./consul-common
+  inherits: monk-consul/consul-common
   variables:
     node:
       env: node

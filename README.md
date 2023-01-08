@@ -17,7 +17,7 @@ not connected to cluster
 
 ## Clone Repository
 ```bash
-git clone https://github.com/Burakhan/monk-consul
+git clone https://github.com/monk-io/monk-consul
 ```
 
 ## Load Template
