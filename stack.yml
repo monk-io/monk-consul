@@ -1,8 +1,8 @@
-namespace: monk-consul
+namespace: consul
 
 stack:
   defines: process-group
   runnable-list:
-    - monk-consul/consul-node1
-    - monk-consul/consul-node2
-    - monk-consul/consul-client
+    - consul/consul-node1
+    - consul/consul-node2
+    - consul/consul-client

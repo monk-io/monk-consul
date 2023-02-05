@@ -1,4 +1,4 @@
-namespace: monk-consul
+namespace: consul
 
 consul-common:
   metadata:
@@ -10,10 +10,10 @@ consul-common:
     icon: logo.png
   connections:
     consul-node1:
-      runnable: monk-consul/consul-node1
+      runnable: consul/consul-node1
       service: consul-svc
     consul-node2:
-      runnable: monk-consul/consul-node2
+      runnable: consul/consul-node2
       service: consul-svc
   variables:
     node1_host:
@@ -31,7 +31,7 @@ consul-common:
 
 consul-node1:
   defines: runnable
-  inherits: monk-consul/consul-common
+  inherits: consul/consul-common
   variables:
     node:
       env: node
@@ -78,7 +78,7 @@ consul-node1:
       
 consul-node2:
   defines: runnable
-  inherits: monk-consul/consul-common
+  inherits: consul/consul-common
   variables:
     node:
       env: node
@@ -103,7 +103,7 @@ consul-node2:
   depends:
     wait-for:
       runnables:
-        - monk-consul/consul-node1
+        - consul/consul-node1
   files:
     server-def:
       container: consul
@@ -122,7 +122,7 @@ consul-node2:
 
 consul-client:
   defines: runnable
-  inherits: monk-consul/consul-common
+  inherits: consul/consul-common
   variables:
     node:
       env: node
