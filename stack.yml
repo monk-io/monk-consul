@@ -1,9 +1,0 @@
----
-namespace: consul
-
-stack:
-  defines: process-group
-  runnable-list:
-    - consul/node1
-    - consul/node2
-    # - consul/consul-client
