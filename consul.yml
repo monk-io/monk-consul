@@ -1,128 +1,113 @@
+---
 namespace: consul
 
-consul-common:
+base:
+  defines: runnable
   metadata:
-    defines: metadata
-    name: Consul by HashiCorp
-    description: Consul is a service networking solution to automate network configurations, discover services, and enable secure connectivity across any cloud or runtime.
+    name: Consul
+    shortname: Consul
+    description: |
+      Consul is a powerful and flexible service mesh solution that provides a unified platform for service discovery, configuration, and segmentation. It enables developers and operators to easily connect, secure, and manage services across any infrastructure or cloud environment.
+
+      With Consul, you can automate network infrastructure, simplify service management, and improve application performance and reliability. It offers a wide range of features, including service discovery, health checking, load balancing, traffic routing, access control, and more.
+
+      Consul is designed to be highly scalable, fault-tolerant, and extensible, making it an ideal choice for modern, distributed applications. Whether you are building microservices, deploying containers, or managing legacy systems, Consul can help you streamline your operations and accelerate your digital transformation journey.
     website: https://www.consul.io
     publisher: monk.io
-    icon: logo.png
+    icon: https://www.datocms-assets.com/2885/1620155093-brandhcconsulverticalcolor.svg
+    source: https://github.com/hashicorp/consul
+  containers:
+    consul:
+      image: consul
+      image-tag: latest
+
+node1:
+  defines: runnable
+  inherits: consul/base
+  metadata:
+    private: true
   connections:
-    consul-node1:
-      runnable: consul/consul-node1
-      service: consul-svc
-    consul-node2:
-      runnable: consul/consul-node2
-      service: consul-svc
+    http-api:
+      runnable: consul/node2
+      service: http-api
+  variables:
+    node2_host:
+      env: node2
+      type: string
+      value: <- connection-hostname("http-api")
+  containers:
+    consul:
+      ports:
+        - 8500:8500
+        - 8600:8600
+        - 8300:8300
+        - 8301:8301
+        - 8302:8302
+        - 8600:8600/udp
+        - 8301:8301/udp
+        - 8302:8302/udp
+      paths:
+        - <- `${monk-volume-path}/consul/node1:/consul/data`
+      bash: /opt/init.sh
+  files:
+    init:
+      container: consul
+      path: /opt/init.sh
+      mode: 0755
+      contents: |
+        #!/bin/sh
+        myip=$(ping -c 1 $(hostname) | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
+        consul agent -server -bootstrap-expect 2 -retry-join ${node2} -advertise ${myip} -data-dir=/consul/data -ui -client 0.0.0.0
+  services:
+    http-api:
+      container: consul
+      port: 8301
+      protocol: tcp
+
+node2:
+  defines: runnable
+  inherits: consul/base
+  metadata:
+    private: true
+  connections:
+    http-api:
+      runnable: consul/node1
+      service: http-api
   variables:
     node1_host:
       env: node1
       type: string
-      value: <- connection-hostname("consul-node1") split(".dns.podman") join("")
-    node2_host:
-      env: node2
-      type: string
-      value: <- connection-hostname("consul-node2") split(".dns.podman") join("")
-    client_host:
-      type: string
-      value: <- connection-hostname("consul-client") split(".dns.podman") join("")
-    
-
-consul-node1:
-  defines: runnable
-  inherits: consul/consul-common
-  variables:
-    node:
-      env: node
-      type: string
-      value: <- `${node1_host}`
-    node1:
-      env: node1
-      type: string
-      value: <- `${node1_host}`
-    node2:
-      env: node2
-      type: string
-      value: <- `${node2_host}`
+      value: <- connection-hostname("http-api")
   containers:
     consul:
       image: consul
       ports:
-        - 0.0.0.0:8500:8500
-        - 0.0.0.0:8600:8600/tcp
-        - 0.0.0.0:8300:8300/tcp
-        - 0.0.0.0:8301:8301/tcp
-        - 0.0.0.0:8302:8302/tcp
-        - 0.0.0.0:8600:8600/udp
-        - 0.0.0.0:8301:8301/udp
-        - 0.0.0.0:8302:8302/udp
+        - 8501:8500
       paths:
-        - <- `${moncc-volume-path}/consul-node1:/consul/data`
+        - <- `${monk-volume-path}/consul/node2:/consul/data`
       bash: /opt/init.sh
+  # depends:
+  #   wait-for:
+  #     runnables:
+  #       - consul/consul-node1
   files:
     server-def:
       container: consul
       path: /opt/init.sh
-      mode: 755
+      mode: 0755
       contents: |
         #!/bin/sh
-        
-        host=$(ping -c 1 ${node} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
-        consul agent -server -bootstrap-expect 2 -retry-join ${node2} -advertise ${host} -data-dir=/consul/data -ui -client 0.0.0.0
+        myip=$(ping -c 1 $(hostname) | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
+        consul agent -server -bootstrap-expect 2 -retry-join ${node1} -advertise ${myip} -data-dir=/consul/data -ui -client 0.0.0.0
   services:
-    consul-svc:
+    http-api:
       container: consul
-      port: 8500
-      protocol: tcp
-      
-consul-node2:
-  defines: runnable
-  inherits: consul/consul-common
-  variables:
-    node:
-      env: node
-      type: string
-      value: <- `${node2_host}`
-    node1:
-      env: node1
-      type: string
-      value: <- `${node1_host}`
-    node2:
-      env: node2
-      type: string
-      value: <- `${node2_host}`
-  containers:
-    consul:
-      image: consul
-      ports:
-        - 0.0.0.0:8501:8500
-      paths:
-        - <- `${moncc-volume-path}/consul-node2:/consul/data`
-      bash: /opt/init.sh
-  depends:
-    wait-for:
-      runnables:
-        - consul/consul-node1
-  files:
-    server-def:
-      container: consul
-      path: /opt/init.sh
-      mode: 755
-      contents: |
-        #!/bin/sh
-
-        host=$(ping -c 1 ${node} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
-        consul agent -server -bootstrap-expect 2 -retry-join ${node1} -advertise ${host} -data-dir=/consul/data -ui -client 0.0.0.0
-  services:
-    consul-svc:
-      container: consul
-      port: 8500
+      port: 8301
       protocol: tcp
 
-consul-client:
+client:
   defines: runnable
-  inherits: consul/consul-common
+  inherits: consul/base
   variables:
     node:
       env: node
@@ -140,15 +125,14 @@ consul-client:
     client:
       image: consul
       paths:
-        - <- `${moncc-volume-path}/consul-client:/consul/data`
+        - <- `${monk-volume-path}/consul-client:/consul/data`
       bash: /opt/init.sh
   files:
     server-def:
       container: client
       path: /opt/init.sh
       mode: 755
-      contents: |
+      contents: |-
         #!/bin/sh
-
         host=$(ping -c 1 ${node} | grep '64 bytes from ' | awk '{print $5}' | tr -d '():')
         consul agent -retry-join ${node1} -retry-join ${node2} -data-dir=/consul/data  -advertise ${host}
