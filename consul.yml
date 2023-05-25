@@ -14,7 +14,7 @@ base:
     publisher: monk.io
     icon: https://www.datocms-assets.com/2885/1620155093-brandhcconsulverticalcolor.svg
     source: https://github.com/hashicorp/consul
-    tags: Service Discovery, Configuration Management, Distributed Systems, Networking, Microservices, Consistency, Security, Monitoring, Scalability, Automation
+    tags: networking, automation, microservices, consistency, configuration management, security, service discovery, scalability, monitoring
     private: true
   containers:
     consul:
